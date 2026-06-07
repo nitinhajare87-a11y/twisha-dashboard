@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TWISHA TERRAFARMS MQTT DASHBOARD</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+  font-family:Arial,sans-serif;
+  background:#0d1117;
+  color:#e6edf3;
+  margin:0;
+  padding:10px;
+}
+
+.mainTitle{
+  text-align:center;
+  color:#e6edf3;
+  font-size:32px;
+  font-weight:900;
+  line-height:1.05;
+  margin:0;
+  padding:0;
+  text-shadow:0 0 6px #00ff88;
+}
+.mainTitle span{
+  font-size:22px;
+  color:#00ff88;
+}
+
+.contact{
+  font-size:17px!important;
+  color:#9ca3af!important;
+  text-shadow:none;
+}
+
+.contactBlock{
+  text-align:center;
+  color:#9ca3af;
+  font-size:17px;
+  margin-top:4px;
+  line-height:1.3;
+}
+
+.mqttStatus{
+  text-align:center;
+  margin:4px 0 10px;
+}
+
+.mqttStatus{
+  text-align:center;
+  font-size:18px;
+  margin:6px 0 12px;
+  color:#9ca3af;
+}
+
+#conn{
+  color:#00ff88;
+  font-weight:bold;
+}
+
+.room{
+  background:#161b22;
+  border:1px solid #30363d;
+  border-radius:18px;
+  padding:14px;
+  margin:12px 0;
+  box-shadow:0 0 12px rgba(0,255,136,0.18);
+}
+
+h2{
+  text-align:center;
+  font-size:24px;
+  margin:4px 0 14px;
+  color:#00ff88;
+  text-shadow:0 0 6px rgba(0,255,136,0.7);
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(9,1fr);
+  gap:10px;
+}
+
+.card{
+  background:#0f172a;
+  border:1px solid #30363d;
+  border-radius:14px;
+  padding:10px;
+  text-align:center;
+  min-height:82px;
+}
+
+.label{
+  color:#9ca3af;
+  font-size:14px;
+}
+
+.val{
+  font-size:30px;
+  font-weight:900;
+  color:#00ff88;
+  margin-top:8px;
+}
+
+.gray{
+  color:#8b949e!important;
+  text-shadow:none!important;
+}
+
+.autoColor{
+  color:#22d3ee!important;
+}
+
+.manualColor{
+  color:#f59e0b!important;
+}
+
+.btnBox{
+  text-align:center;
+  margin-top:12px;
+}
+
+.btn{
+  border:0;
+  border-radius:9px;
+  padding:10px 14px;
+  margin:5px;
+  font-size:14px;
+  font-weight:bold;
+  color:white;
+  cursor:pointer;
+}
+
+.on{background:#00c853}
+.off{background:#6b7280}
+.reset{background:#ff3b30}
+
+@media(max-width:900px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .mainTitle{font-size:26px}
+  .mainTitle span{font-size:19px}
+}
+</style>
+</head>
+
+<body>
+
+<div class="mainTitle">
+TWISHA TERRAFARMS<br>
+<span>GROW ROOM + MUSHROOM INCUBATION ROOM</span><br>
+<span>HAJARE ELECTRONICS SYSTEM</span>
+</div>
+
+<div class="contactBlock">
+Mobile: 8800466063<br>
+Office: Pune, 020 45342344
+</div>
+
+<h3 class="mqttStatus">MQTT Status: <span id="conn">Connecting...</span></h3>
+
+<div class="room">
+<h2>🌿 GROW ROOM</h2>
+
+<div class="grid">
+  <div class="card"><div class="label">Temp 1</div><div id="gt1" class="val">--</div></div>
+  <div class="card"><div class="label">Hum 1</div><div id="gh1" class="val">--</div></div>
+  <div class="card"><div class="label">Temp 2</div><div id="gt2" class="val">--</div></div>
+  <div class="card"><div class="label">Hum 2</div><div id="gh2" class="val">--</div></div>
+  <div class="card"><div class="label">CO2</div><div id="gco2" class="val">--</div></div>
+  <div class="card"><div class="label">Mode</div><div id="gmode" class="val gray">--</div></div>
+  <div class="card"><div class="label">Fan</div><div id="gfan" class="val gray">--</div></div>
+  <div class="card"><div class="label">Pump</div><div id="gpump" class="val gray">--</div></div>
+  <div class="card"><div class="label">Inlet</div><div id="ginlet" class="val gray">--</div></div>
+</div>
+
+<div class="btnBox">
+  <button class="btn on" onclick="pub('sand/growroom/mode/set','1')">AUTO</button>
+  <button class="btn off" onclick="pub('sand/growroom/mode/set','0')">MANUAL</button>
+  <button class="btn on" onclick="pub('sand/growroom/fan/set','1')">Fan ON</button>
+  <button class="btn off" onclick="pub('sand/growroom/fan/set','0')">Fan OFF</button>
+  <button class="btn on" onclick="pub('sand/growroom/pump/set','1')">Pump ON</button>
+  <button class="btn off" onclick="pub('sand/growroom/pump/set','0')">Pump OFF</button>
+  <button class="btn on" onclick="pub('sand/growroom/inlet/set','1')">Inlet ON</button>
+  <button class="btn off" onclick="pub('sand/growroom/inlet/set','0')">Inlet OFF</button>
+  <button class="btn reset" onclick="pub('sand/growroom/reset/set','1')">RESET</button>
+</div>
+</div>
+
+<div class="room">
+<h2>🍄 MUSHROOM INCUBATION ROOM</h2>
+
+<div class="grid">
+  <div class="card"><div class="label">Temp 1</div><div id="it1" class="val">--</div></div>
+  <div class="card"><div class="label">Hum 1</div><div id="ih1" class="val">--</div></div>
+  <div class="card"><div class="label">Temp 2</div><div id="it2" class="val">--</div></div>
+  <div class="card"><div class="label">Hum 2</div><div id="ih2" class="val">--</div></div>
+  <div class="card"><div class="label">CO2</div><div id="ico2" class="val">--</div></div>
+  <div class="card"><div class="label">Mode</div><div id="imode" class="val gray">--</div></div>
+  <div class="card"><div class="label">AC</div><div id="iac" class="val gray">--</div></div>
+  <div class="card"><div class="label">Fan</div><div id="ifan" class="val gray">--</div></div>
+</div>
+
+<div class="btnBox">
+  <button class="btn on" onclick="pub('sand/incubation/mode/set','1')">AUTO</button>
+  <button class="btn off" onclick="pub('sand/incubation/mode/set','0')">MANUAL</button>
+  <button class="btn on" onclick="pub('sand/incubation/ac/set','1')">AC ON</button>
+  <button class="btn off" onclick="pub('sand/incubation/ac/set','0')">AC OFF</button>
+  <button class="btn on" onclick="pub('sand/incubation/fan/set','1')">Fan ON</button>
+  <button class="btn off" onclick="pub('sand/incubation/fan/set','0')">Fan OFF</button>
+  <button class="btn reset" onclick="pub('sand/incubation/reset/set','1')">RESET</button>
+</div>
+</div>
+
+<script>
+const client = mqtt.connect(
+  "wss://431f345fb6a84bfa856a4d34568a46aa.s1.eu.hivemq.cloud:8884/mqtt",
+  {
+    username: "nhajare1987",
+    password: "Army@7387",
+    clean: true,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000
+  }
+);
+
+client.on("connect", () => {
+  document.getElementById("conn").innerText = "CONNECTED";
+  client.subscribe("sand/#");
+});
+
+client.on("offline", () => {
+  document.getElementById("conn").innerText = "OFFLINE";
+  document.getElementById("conn").style.color = "#ff3b30";
+});
+
+client.on("error", () => {
+  document.getElementById("conn").innerText = "ERROR";
+  document.getElementById("conn").style.color = "#ff3b30";
+});
+
+function setText(id, value){
+  document.getElementById(id).innerText = value;
+}
+
+function updateOnOff(id, value){
+  const el = document.getElementById(id);
+  if(value === "1" || value.toUpperCase() === "ON"){
+    el.innerText = "ON";
+    el.classList.remove("gray");
+    el.style.color = "#00ff88";
+  }else{
+    el.innerText = "OFF";
+    el.classList.add("gray");
+    el.style.color = "#8b949e";
+  }
+}
+
+function updateMode(id, value){
+  const el = document.getElementById(id);
+  if(value === "1"){
+    el.innerText = "AUTO";
+    el.classList.remove("gray","manualColor");
+    el.classList.add("autoColor");
+  }else{
+    el.innerText = "MANUAL";
+    el.classList.remove("gray","autoColor");
+    el.classList.add("manualColor");
+  }
+}
+
+client.on("message", (topic, message) => {
+  const v = message.toString();
+
+  if(topic === "sand/growroom/t1") setText("gt1", v);
+  else if(topic === "sand/growroom/h1") setText("gh1", v);
+  else if(topic === "sand/growroom/t2") setText("gt2", v);
+  else if(topic === "sand/growroom/h2") setText("gh2", v);
+  else if(topic === "sand/growroom/co2") setText("gco2", v);
+  else if(topic === "sand/growroom/mode/status") updateMode("gmode", v);
+  else if(topic === "sand/growroom/fan/status") updateOnOff("gfan", v);
+  else if(topic === "sand/growroom/pump/status") updateOnOff("gpump", v);
+  else if(topic === "sand/growroom/inlet/status") updateOnOff("ginlet", v);
+
+  else if(topic === "sand/incubation/t1") setText("it1", v);
+  else if(topic === "sand/incubation/h1") setText("ih1", v);
+  else if(topic === "sand/incubation/t2") setText("it2", v);
+  else if(topic === "sand/incubation/h2") setText("ih2", v);
+  else if(topic === "sand/incubation/co2") setText("ico2", v);
+  else if(topic === "sand/incubation/mode/status") updateMode("imode", v);
+  else if(topic === "sand/incubation/ac/status") updateOnOff("iac", v);
+  else if(topic === "sand/incubation/fan/status") updateOnOff("ifan", v);
+});
+
+function pub(topic, payload){
+  client.publish(topic, payload, {retain:false});
+}
+</script>
+
+</body>
+</html>
