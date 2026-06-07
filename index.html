@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TWISHA TERRAFARMS MQTT DASHBOARD</title>
+<title>🍄 TWISHA TERRAFARMS MQTT DASHBOARD</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
@@ -12,6 +12,15 @@ body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3;margin:0;padd
 .mainTitle span{font-size:22px;color:#00ff88}
 .contactBlock{text-align:center;color:#9ca3af;font-size:17px;margin-top:4px;line-height:1.3}
 .mqttStatus{text-align:center;font-size:18px;margin:4px 0 8px;color:#9ca3af}
+@keyframes blinkAlarm{
+  0%{opacity:1}
+  50%{opacity:0.4}
+  100%{opacity:1}
+}
+
+.alarm{
+  animation:blinkAlarm 1s infinite;
+}
 #conn{color:#00ff88;font-weight:bold}
 #lastUpdate{text-align:center;color:#9ca3af;font-size:15px;margin-bottom:8px}
 .alarm{display:none;text-align:center;background:#ff3b30;color:white;font-weight:bold;padding:10px;border-radius:10px;margin:8px 0}
@@ -39,10 +48,13 @@ h2{text-align:center;font-size:24px;margin:4px 0 14px;color:#00ff88;text-shadow:
 </head>
 
 <body>
+<audio id="alarmSound">
+  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg">
+</audio>
 
 <div class="mainTitle">
 TWISHA TERRAFARMS<br>
-<span><h2>🌱GROW ROOM + 🍄MUSHROOM INCUBATION ROOM</span><br>
+<span> 🌿GROW ROOM + 🍄MUSHROOM INCUBATION ROOM🍄</span><br>
 <span>HAJARE ELECTRONICS SYSTEM</span>
 </div>
 
@@ -54,9 +66,17 @@ Office: Pune, 020 45342344
 <h3 class="mqttStatus">MQTT Status: <span id="conn">Connecting...</span></h3>
 <div id="lastUpdate">Last Update: --</div>
 <div id="alarmBox" class="alarm">ALARM</div>
+<div class="btnBox">
+  <button class="btn reset" onclick="ackAlarm()">ACKNOWLEDGE</button>
+  <button class="btn off" onclick="showAlarmHistory()">SHOW HISTORY</button>
+  <button class="btn on" onclick="downloadCSV()">DOWNLOAD CSV</button>
+  <button class="btn on" onclick="downloadDailyReport()">DAILY REPORT / PRINT</button>
+  <button class="btn reset" onclick="sendWhatsAppAlert()">WHATSAPP ALERT</button>
+</div>
+<div id="historyBox" style="display:none;background:#0f172a;border:1px solid #30363d;border-radius:12px;padding:10px;margin:10px;color:#e6edf3"></div>
 
 <div class="room">
-  <h2>🌱 GROW ROOM</h2>
+<h2>🌿GROW ROOM</h2>
 <div class="grid">
   <div class="card"><div class="label">Temp 1</div><div id="gt1" class="val">--</div></div>
   <div class="card"><div class="label">Hum 1</div><div id="gh1" class="val">--</div></div>
@@ -83,7 +103,7 @@ Office: Pune, 020 45342344
 </div>
 
 <div class="room">
-  <h2>🍄 MUSHROOM INCUBATION ROOM🍄</h2>
+<h2>🍄 MUSHROOM INCUBATION ROOM</h2>
 <div class="grid">
   <div class="card"><div class="label">Temp 1</div><div id="it1" class="val">--</div></div>
   <div class="card"><div class="label">Hum 1</div><div id="ih1" class="val">--</div></div>
@@ -149,6 +169,29 @@ function updateOnOff(id, value){
   }
 }
 
+let soundPlaying = false;
+let alarmAcknowledged = false;
+let lastAlarmMessage = "";
+
+function playAlarm(){
+  if(!soundPlaying){
+    const playPromise = document.getElementById("alarmSound").play();
+    if(playPromise) playPromise.catch(() => {});
+    soundPlaying = true;
+  }
+}
+
+function stopAlarm(){
+  document.getElementById("alarmSound").pause();
+  document.getElementById("alarmSound").currentTime=0;
+  soundPlaying=false;
+}
+
+function ackAlarm(){
+  alarmAcknowledged = true;
+  stopAlarm();
+}
+
 function updateMode(id, value){
   const el = document.getElementById(id);
   if(value === "1"){
@@ -161,7 +204,11 @@ function updateMode(id, value){
 }
 
 function pub(topic, payload){
-  client.publish(topic, payload, {retain:false});
+  if(client.connected){
+    client.publish(topic, payload, {retain:false});
+  }else{
+    alert("MQTT is not connected.");
+  }
 }
 
 function resetRoom(topic, name){
@@ -191,13 +238,98 @@ function checkAlarm(){
   if(Date.now() - lastMessageTime > 60000) alarms.push("Sensor Offline / No MQTT Data");
 
   const box = document.getElementById("alarmBox");
+
   if(alarms.length > 0){
+    const alarmMessage = alarms.join(" | ");
     box.style.display = "block";
-    box.innerText = "ALARM: " + alarms.join(" | ");
+    box.innerText = "ALARM: " + alarmMessage;
+
+    if(alarmMessage !== lastAlarmMessage){
+      saveAlarmHistory("CRITICAL", alarmMessage);
+      lastAlarmMessage = alarmMessage;
+      alarmAcknowledged = false;
+    }
+
+    if(!alarmAcknowledged) playAlarm();
   }else{
     box.style.display = "none";
+    lastAlarmMessage = "";
+    alarmAcknowledged = false;
+    stopAlarm();
   }
 }
+
+function saveAlarmHistory(level, msg){
+  let logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
+  logs.unshift({
+    time: new Date().toLocaleString(),
+    level: level,
+    message: msg,
+    gt1: document.getElementById("gt1").innerText,
+    gt2: document.getElementById("gt2").innerText,
+    gco2: document.getElementById("gco2").innerText,
+    it1: document.getElementById("it1").innerText,
+    it2: document.getElementById("it2").innerText,
+    ico2: document.getElementById("ico2").innerText
+  });
+  logs = logs.slice(0,100);
+  localStorage.setItem("alarmLogs", JSON.stringify(logs));
+}
+
+function showAlarmHistory(){
+  const box = document.getElementById("historyBox");
+  const logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
+
+  box.style.display = box.style.display === "block" ? "none" : "block";
+
+  if(logs.length === 0){
+    box.innerHTML = "No alarm history";
+    return;
+  }
+
+  box.innerHTML = "<h3>Alarm History</h3>" + logs.map(l =>
+    `<div style="border-bottom:1px solid #30363d;padding:6px">
+      <b>${l.level}</b> - ${l.message}<br>
+      <small>${l.time}</small>
+    </div>`
+  ).join("");
+}
+
+function downloadCSV(){
+  const logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
+  let csv = "Time,Level,Message,Grow T1,Grow T2,Grow CO2,Inc T1,Inc T2,Inc CO2\n";
+
+  logs.forEach(l=>{
+    csv += `"${l.time}","${l.level}","${l.message}","${l.gt1}","${l.gt2}","${l.gco2}","${l.it1}","${l.it2}","${l.ico2}"\n`;
+  });
+
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "twisha_alarm_history.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadDailyReport(){
+  window.print();
+}
+
+function sendWhatsAppAlert(){
+  const msg =
+`TWISHA TERRAFARMS ALERT
+Grow Temp1: ${document.getElementById("gt1").innerText}
+Grow Temp2: ${document.getElementById("gt2").innerText}
+Grow CO2: ${document.getElementById("gco2").innerText}
+Inc Temp1: ${document.getElementById("it1").innerText}
+Inc Temp2: ${document.getElementById("it2").innerText}
+Inc CO2: ${document.getElementById("ico2").innerText}
+Status: ${document.getElementById("alarmBox").innerText}`;
+
+  window.open("https://wa.me/918800466063?text=" + encodeURIComponent(msg), "_blank");
+}
+
 
 client.on("message", (topic, message) => {
   const v = message.toString();
