@@ -69,9 +69,10 @@ Office: Pune, 020 45342344
 <div class="btnBox">
   <button class="btn reset" onclick="ackAlarm()">ACKNOWLEDGE</button>
   <button class="btn off" onclick="showAlarmHistory()">SHOW HISTORY</button>
+  <button class="btn on" onclick="openLogSheet()">LIVE DATA LOG</button>
   <button class="btn on" onclick="downloadCSV()">DOWNLOAD CSV</button>
   <button class="btn on" onclick="downloadDailyReport()">DAILY REPORT / PRINT</button>
-  <button class="btn reset" onclick="sendWhatsAppAlert()">WHATSAPP ALERT</button>
+  
 </div>
 <div id="historyBox" style="display:none;background:#0f172a;border:1px solid #30363d;border-radius:12px;padding:10px;margin:10px;color:#e6edf3"></div>
 
@@ -359,6 +360,13 @@ client.on("message", (topic, message) => {
 });
 
 setInterval(checkAlarm, 5000);
+
+function openLogSheet() {
+  window.open(
+    "https://docs.google.com/spreadsheets/d/1GRV8JySYTPmEGvts4WMmEGOvP3JV1sCoacphgv5HaCo/edit",
+    "_blank"
+  );
+}
 </script>
 
 </body>
