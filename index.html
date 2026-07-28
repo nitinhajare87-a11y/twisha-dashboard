@@ -1,373 +1,466 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🍄 TWISHA TERRAFARMS MQTT DASHBOARD</title>
+<title>TWISHA TERRAFARMS MUSHROOM FARMHOUSE SCADA</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
 <style>
 *{box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:10px}
-.mainTitle{text-align:center;color:#e6edf3;font-size:32px;font-weight:900;line-height:1.05;margin:0;text-shadow:0 0 8px #00ff88}
-.mainTitle span{font-size:22px;color:#00ff88}
-.contactBlock{text-align:center;color:#9ca3af;font-size:17px;margin-top:4px;line-height:1.3}
-.mqttStatus{text-align:center;font-size:18px;margin:4px 0 8px;color:#9ca3af}
-@keyframes blinkAlarm{
-  0%{opacity:1}
-  50%{opacity:0.4}
-  100%{opacity:1}
+:root{
+  --bg:#091018;
+  --panel:#121b24;
+  --card:#0c1730;
+  --line:#1e8c84;
+  --text:#e7eef7;
+  --muted:#9cb0c4;
+  --green:#10f37b;
+  --cyan:#27d9ff;
+  --amber:#ffb545;
+  --red:#ff493d;
+  --blue:#1d6fff;
 }
-
-.alarm{
-  animation:blinkAlarm 1s infinite;
+body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#10253a 0,#091018 55%,#05080c 100%);color:var(--text);padding:18px}
+.shell{max-width:1400px;margin:0 auto}
+.hero,.room{background:rgba(18,27,36,.96);border:1px solid rgba(39,217,255,.18);border-radius:26px;box-shadow:0 0 28px rgba(16,243,123,.08),inset 0 0 0 1px rgba(255,255,255,.02)}
+.hero{padding:22px 22px 16px;text-align:center}
+.brand{font-size:clamp(34px,4vw,60px);font-weight:900;line-height:1;color:#b7fff4;text-shadow:0 0 16px rgba(16,243,123,.55)}
+.subbrand{font-size:clamp(16px,2vw,28px);font-weight:800;color:var(--green);margin-top:8px}
+.company{font-size:clamp(14px,1.5vw,20px);font-weight:800;color:#35f6bd;margin-top:4px}
+.meta{margin-top:8px;color:#d7dde5;font-size:clamp(15px,1.5vw,18px);line-height:1.55}
+.statusLine{margin-top:8px;font-size:clamp(18px,1.7vw,24px);font-weight:700}
+.statusLine .ok{color:var(--green)}
+.statusLine .bad{color:var(--red)}
+.toolbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0}
+.btn{border:0;border-radius:14px;padding:15px 14px;font-size:16px;font-weight:800;color:#fff;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,.2)}
+.btn.blue{background:var(--blue)}
+.btn.green{background:#0ecf56}
+.btn.gray{background:#768193}
+.btn.red{background:#ff402f}
+.rooms{display:grid;gap:16px}
+.room{padding:16px}
+.roomTitle{text-align:center;font-size:clamp(26px,2.4vw,40px);font-weight:900;color:var(--green);text-shadow:0 0 12px rgba(16,243,123,.45);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px 10px;min-height:92px;text-align:center}
+.label{color:#8fb4d7;font-size:15px}
+.val{margin-top:10px;font-size:31px;font-weight:900;color:#14f48c}
+.val.gray{color:#9ea8b5}
+.val.auto{color:var(--cyan)}
+.val.manual{color:var(--amber)}
+.controlBar{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:14px}
+.controlBtn{border:0;border-radius:12px;padding:12px 16px;color:#fff;font-weight:800;cursor:pointer}
+.controlBtn.on{background:#0fd45b}
+.controlBtn.off{background:#7b8594}
+.controlBtn.reset{background:#ff3f2f}
+.alarm{display:none;margin-top:12px;background:rgba(255,73,61,.92);color:#fff;border-radius:14px;padding:14px 16px;font-weight:800;text-align:center}
+.history,.live{display:none;background:#0f1825;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:14px;margin-top:16px}
+.historyItem,.liveItem{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);color:#dbe3ed}
+.historyItem:last-child,.liveItem:last-child{border-bottom:0}
+.footerNote{margin-top:18px;text-align:center;color:var(--muted);font-size:14px}
+@media(max-width:1100px){
+  .toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
-#conn{color:#00ff88;font-weight:bold}
-#lastUpdate{text-align:center;color:#9ca3af;font-size:15px;margin-bottom:8px}
-.alarm{display:none;text-align:center;background:#ff3b30;color:white;font-weight:bold;padding:10px;border-radius:10px;margin:8px 0}
-.room{background:#161b22;border:1px solid #30363d;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 0 12px rgba(0,255,136,0.18)}
-h2{text-align:center;font-size:24px;margin:4px 0 14px;color:#00ff88;text-shadow:0 0 6px rgba(0,255,136,0.7)}
-.grid{display:grid;grid-template-columns:repeat(9,1fr);gap:10px}
-.card{background:#0f172a;border:1px solid #30363d;border-radius:14px;padding:10px;text-align:center;min-height:82px}
-.label{color:#9ca3af;font-size:14px}
-.val{font-size:30px;font-weight:900;color:#00ff88;margin-top:8px}
-.gray{color:#8b949e!important;text-shadow:none!important}
-.autoColor{color:#22d3ee!important}
-.manualColor{color:#f59e0b!important}
-.btnBox{text-align:center;margin-top:12px}
-.btn{border:0;border-radius:9px;padding:10px 14px;margin:5px;font-size:14px;font-weight:bold;color:white;cursor:pointer}
-.on{background:#00c853}
-.off{background:#6b7280}
-.reset{background:#ff3b30}
-@media(max-width:900px){
-  .grid{grid-template-columns:repeat(2,1fr)}
-  .mainTitle{font-size:25px}
-  .mainTitle span{font-size:18px}
-  .btn{width:43%;margin:5px 3px}
+@media(max-width:700px){
+  body{padding:12px}
+  .hero{padding:18px 14px 14px}
+  .toolbar{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .btn,.controlBtn{font-size:15px}
 }
 </style>
 </head>
-
 <body>
-<audio id="alarmSound">
-  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg">
-</audio>
+<div class="shell">
+  <section class="hero">
+    <div class="brand">TWISHA TERRAFARMS</div>
+    <div class="subbrand">MUSHROOM FARMHOUSE SCADA</div>
+    <div class="company">HAJARE ELECTRONICS SYSTEM</div>
+    <div class="meta">
+      Mobile: 8800466063<br>
+      Office: Pune, 020 45342344
+    </div>
+    <div class="statusLine">MQTT Status: <span id="conn" class="bad">CONNECTING...</span></div>
+    <div class="meta">Last Update: <span id="lastUpdate">--</span></div>
+    <div id="alarmBox" class="alarm">ALARM</div>
+  </section>
 
-<div class="mainTitle">
-TWISHA TERRAFARMS<br>
-<span> 🌿GROW ROOM + 🍄MUSHROOM INCUBATION ROOM🍄</span><br>
-<span>HAJARE ELECTRONICS SYSTEM</span>
-</div>
+  <section class="toolbar">
+    <button class="btn blue" onclick="toggleLiveLog()">LIVE DATA LOG</button>
+    <button class="btn gray" onclick="toggleHistory()">SHOW HISTORY</button>
+    <button class="btn green" onclick="downloadMonthlyCSV()">DOWNLOAD MONTH CSV</button>
+    <button class="btn green" onclick="printMonthlyReport()">MONTHLY REPORT / PRINT</button>
+    <button class="btn red" onclick="sendWhatsAppAlert()">WHATSAPP ALERT</button>
+  </section>
 
-<div class="contactBlock">
-Mobile: 8800466063<br>
-Office: Pune, 020 45342344
-</div>
+  <div id="historyBox" class="history"></div>
+  <div id="liveBox" class="live"></div>
 
-<h3 class="mqttStatus">MQTT Status: <span id="conn">Connecting...</span></h3>
-<div id="lastUpdate">Last Update: --</div>
-<div id="alarmBox" class="alarm">ALARM</div>
-<div class="btnBox">
-  <button class="btn reset" onclick="ackAlarm()">ACKNOWLEDGE</button>
-  <button class="btn off" onclick="showAlarmHistory()">SHOW HISTORY</button>
-  <button class="btn on" onclick="openLogSheet()">LIVE DATA LOG</button>
-  <button class="btn on" onclick="downloadCSV()">DOWNLOAD CSV</button>
-  <button class="btn on" onclick="downloadDailyReport()">DAILY REPORT / PRINT</button>
-  
-</div>
-<div id="historyBox" style="display:none;background:#0f172a;border:1px solid #30363d;border-radius:12px;padding:10px;margin:10px;color:#e6edf3"></div>
+  <section class="rooms">
+    <div class="room">
+      <h2 class="roomTitle">🌿 GROW ROOM</h2>
+      <div class="grid">
+        <div class="card"><div class="label">Temp 1</div><div id="gt1" class="val">--</div></div>
+        <div class="card"><div class="label">Hum 1</div><div id="gh1" class="val">--</div></div>
+        <div class="card"><div class="label">Temp 2</div><div id="gt2" class="val">--</div></div>
+        <div class="card"><div class="label">Hum 2</div><div id="gh2" class="val">--</div></div>
+        <div class="card"><div class="label">CO2</div><div id="gco2" class="val">--</div></div>
+        <div class="card"><div class="label">Mode</div><div id="gmode" class="val gray">--</div></div>
+        <div class="card"><div class="label">Fan</div><div id="gfan" class="val gray">--</div></div>
+        <div class="card"><div class="label">Pump</div><div id="gpump" class="val gray">--</div></div>
+        <div class="card"><div class="label">Inlet</div><div id="ginlet" class="val gray">--</div></div>
+      </div>
+      <div class="controlBar">
+        <button class="controlBtn on" onclick="pub('sand/growroom/mode/set','1')">AUTO</button>
+        <button class="controlBtn off" onclick="pub('sand/growroom/mode/set','0')">MANUAL</button>
+        <button class="controlBtn on" onclick="pub('sand/growroom/fan/set','1')">FAN ON</button>
+        <button class="controlBtn off" onclick="pub('sand/growroom/fan/set','0')">FAN OFF</button>
+        <button class="controlBtn on" onclick="pub('sand/growroom/pump/set','1')">PUMP ON</button>
+        <button class="controlBtn off" onclick="pub('sand/growroom/pump/set','0')">PUMP OFF</button>
+        <button class="controlBtn on" onclick="pub('sand/growroom/inlet/set','1')">INLET ON</button>
+        <button class="controlBtn off" onclick="pub('sand/growroom/inlet/set','0')">INLET OFF</button>
+        <button class="controlBtn reset" onclick="resetRoom('sand/growroom/reset/set','Grow Room')">RESET</button>
+      </div>
+    </div>
 
-<div class="room">
-<h2>🌿GROW ROOM</h2>
-<div class="grid">
-  <div class="card"><div class="label">Temp 1</div><div id="gt1" class="val">--</div></div>
-  <div class="card"><div class="label">Hum 1</div><div id="gh1" class="val">--</div></div>
-  <div class="card"><div class="label">Temp 2</div><div id="gt2" class="val">--</div></div>
-  <div class="card"><div class="label">Hum 2</div><div id="gh2" class="val">--</div></div>
-  <div class="card"><div class="label">CO2</div><div id="gco2" class="val">--</div></div>
-  <div class="card"><div class="label">Mode</div><div id="gmode" class="val gray">--</div></div>
-  <div class="card"><div class="label">Fan</div><div id="gfan" class="val gray">--</div></div>
-  <div class="card"><div class="label">Pump</div><div id="gpump" class="val gray">--</div></div>
-  <div class="card"><div class="label">Inlet</div><div id="ginlet" class="val gray">--</div></div>
-</div>
+    <div class="room">
+      <h2 class="roomTitle">🍄 MUSHROOM INCUBATION ROOM</h2>
+      <div class="grid">
+        <div class="card"><div class="label">Temp 1</div><div id="it1" class="val">--</div></div>
+        <div class="card"><div class="label">Hum 1</div><div id="ih1" class="val">--</div></div>
+        <div class="card"><div class="label">Temp 2</div><div id="it2" class="val">--</div></div>
+        <div class="card"><div class="label">Hum 2</div><div id="ih2" class="val">--</div></div>
+        <div class="card"><div class="label">CO2</div><div id="ico2" class="val">--</div></div>
+        <div class="card"><div class="label">Mode</div><div id="imode" class="val gray">--</div></div>
+        <div class="card"><div class="label">AC</div><div id="iac" class="val gray">--</div></div>
+        <div class="card"><div class="label">Fan</div><div id="ifan" class="val gray">--</div></div>
+        <div class="card"><div class="label">Status</div><div id="istatus" class="val gray">--</div></div>
+      </div>
+      <div class="controlBar">
+        <button class="controlBtn on" onclick="pub('sand/incubation/mode/set','1')">AUTO</button>
+        <button class="controlBtn off" onclick="pub('sand/incubation/mode/set','0')">MANUAL</button>
+        <button class="controlBtn on" onclick="pub('sand/incubation/ac/set','1')">AC ON</button>
+        <button class="controlBtn off" onclick="pub('sand/incubation/ac/set','0')">AC OFF</button>
+        <button class="controlBtn on" onclick="pub('sand/incubation/fan/set','1')">FAN ON</button>
+        <button class="controlBtn off" onclick="pub('sand/incubation/fan/set','0')">FAN OFF</button>
+        <button class="controlBtn reset" onclick="resetRoom('sand/incubation/reset/set','Incubation Room')">RESET</button>
+      </div>
+    </div>
+  </section>
 
-<div class="btnBox">
-  <button class="btn on" onclick="pub('sand/growroom/mode/set','1')">AUTO</button>
-  <button class="btn off" onclick="pub('sand/growroom/mode/set','0')">MANUAL</button>
-  <button class="btn on" onclick="pub('sand/growroom/fan/set','1')">Fan ON</button>
-  <button class="btn off" onclick="pub('sand/growroom/fan/set','0')">Fan OFF</button>
-  <button class="btn on" onclick="pub('sand/growroom/pump/set','1')">Pump ON</button>
-  <button class="btn off" onclick="pub('sand/growroom/pump/set','0')">Pump OFF</button>
-  <button class="btn on" onclick="pub('sand/growroom/inlet/set','1')">Inlet ON</button>
-  <button class="btn off" onclick="pub('sand/growroom/inlet/set','0')">Inlet OFF</button>
-  <button class="btn reset" onclick="resetRoom('sand/growroom/reset/set','Grow Room')">RESET</button>
-</div>
-</div>
-
-<div class="room">
-<h2>🍄 MUSHROOM INCUBATION ROOM</h2>
-<div class="grid">
-  <div class="card"><div class="label">Temp 1</div><div id="it1" class="val">--</div></div>
-  <div class="card"><div class="label">Hum 1</div><div id="ih1" class="val">--</div></div>
-  <div class="card"><div class="label">Temp 2</div><div id="it2" class="val">--</div></div>
-  <div class="card"><div class="label">Hum 2</div><div id="ih2" class="val">--</div></div>
-  <div class="card"><div class="label">CO2</div><div id="ico2" class="val">--</div></div>
-  <div class="card"><div class="label">Mode</div><div id="imode" class="val gray">--</div></div>
-  <div class="card"><div class="label">AC</div><div id="iac" class="val gray">--</div></div>
-  <div class="card"><div class="label">Fan</div><div id="ifan" class="val gray">--</div></div>
-</div>
-
-<div class="btnBox">
-  <button class="btn on" onclick="pub('sand/incubation/mode/set','1')">AUTO</button>
-  <button class="btn off" onclick="pub('sand/incubation/mode/set','0')">MANUAL</button>
-  <button class="btn on" onclick="pub('sand/incubation/ac/set','1')">AC ON</button>
-  <button class="btn off" onclick="pub('sand/incubation/ac/set','0')">AC OFF</button>
-  <button class="btn on" onclick="pub('sand/incubation/fan/set','1')">Fan ON</button>
-  <button class="btn off" onclick="pub('sand/incubation/fan/set','0')">Fan OFF</button>
-  <button class="btn reset" onclick="resetRoom('sand/incubation/reset/set','Incubation Room')">RESET</button>
-</div>
+  <div class="footerNote">Twisha Terrafarms global dashboard combines live MQTT data, minute logs, alarms, and room-wise controls in one screen.</div>
 </div>
 
 <script>
-let lastMessageTime = Date.now();
+const latest = {
+  growroom: { room: "growroom" },
+  incubation: { room: "incubation" }
+};
 
-const client = mqtt.connect(
-  "wss://431f345fb6a84bfa856a4d34568a46aa.s1.eu.hivemq.cloud:8884/mqtt",
-  {
-    username: "nhajare1987",
-    password: "Army@7387",
-    clean: true,
-    reconnectPeriod: 3000,
-    connectTimeout: 10000
-  }
-);
-
-client.on("connect", () => {
-  document.getElementById("conn").innerText = "CONNECTED";
-  document.getElementById("conn").style.color = "#00ff88";
-  client.subscribe("sand/#");
-});
-
-client.on("offline", () => {
-  document.getElementById("conn").innerText = "OFFLINE";
-  document.getElementById("conn").style.color = "#ff3b30";
-});
-
-client.on("error", () => {
-  document.getElementById("conn").innerText = "ERROR";
-  document.getElementById("conn").style.color = "#ff3b30";
-});
-
-function setText(id, value){ document.getElementById(id).innerText = value; }
-
-function updateOnOff(id, value){
-  const el = document.getElementById(id);
-  if(value === "1"){
-    el.innerText = "ON";
-    el.style.color = "#00ff88";
-  }else{
-    el.innerText = "OFF";
-    el.style.color = "#8b949e";
-  }
-}
-
-let soundPlaying = false;
+let lastMessageTime = 0;
+let liveVisible = false;
+let historyVisible = false;
 let alarmAcknowledged = false;
 let lastAlarmMessage = "";
 
-function playAlarm(){
-  if(!soundPlaying){
-    const playPromise = document.getElementById("alarmSound").play();
-    if(playPromise) playPromise.catch(() => {});
-    soundPlaying = true;
-  }
+const client = mqtt.connect("wss://431f345fb6a84bfa856a4d34568a46aa.s1.eu.hivemq.cloud:8884/mqtt", {
+  username: "nhajare1987",
+  password: "Army@7387",
+  clean: true,
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
+});
+
+client.on("connect", () => {
+  setConn("CONNECTED", true);
+  client.subscribe("sand/#");
+});
+
+client.on("offline", () => setConn("OFFLINE", false));
+client.on("error", () => setConn("ERROR", false));
+
+client.on("message", (topic, message) => {
+  const value = message.toString();
+  lastMessageTime = Date.now();
+  document.getElementById("lastUpdate").innerText = new Date().toLocaleString();
+  handleTopic(topic, value);
+  addLiveLine(topic, value);
+  checkAlarm();
+});
+
+function setConn(text, ok){
+  const el = document.getElementById("conn");
+  el.textContent = text;
+  el.className = ok ? "ok" : "bad";
 }
 
-function stopAlarm(){
-  document.getElementById("alarmSound").pause();
-  document.getElementById("alarmSound").currentTime=0;
-  soundPlaying=false;
-}
-
-function ackAlarm(){
-  alarmAcknowledged = true;
-  stopAlarm();
-}
-
-function updateMode(id, value){
+function setText(id, value){
   const el = document.getElementById(id);
-  if(value === "1"){
-    el.innerText = "AUTO";
-    el.className = "val autoColor";
-  }else{
-    el.innerText = "MANUAL";
-    el.className = "val manualColor";
-  }
+  if (el) el.textContent = value;
+}
+
+function setMode(id, value){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value === "1" ? "AUTO" : "MANUAL";
+  el.className = "val " + (value === "1" ? "auto" : "manual");
+}
+
+function setOnOff(id, value){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value === "1" ? "ON" : "OFF";
+  el.className = "val " + (value === "1" ? "" : "gray");
 }
 
 function pub(topic, payload){
-  if(client.connected){
-    client.publish(topic, payload, {retain:false});
-  }else{
-    alert("MQTT is not connected.");
+  if (!client.connected) {
+    alert("MQTT not connected");
+    return;
   }
+  client.publish(topic, payload, { retain: false });
 }
 
-function resetRoom(topic, name){
-  if(confirm("Are you sure you want to RESET " + name + "?")){
+function resetRoom(topic, roomName){
+  if (confirm("RESET " + roomName + " ?")) {
     pub(topic, "1");
   }
 }
 
-function updateLastTime(){
-  const now = new Date();
-  document.getElementById("lastUpdate").innerText =
-    "Last Update: " + now.toLocaleTimeString();
+function handleTopic(topic, value){
+  if (topic === "sand/growroom/t1") { setText("gt1", value); latest.growroom.t1 = value; }
+  else if (topic === "sand/growroom/h1") { setText("gh1", value); latest.growroom.h1 = value; }
+  else if (topic === "sand/growroom/t2") { setText("gt2", value); latest.growroom.t2 = value; }
+  else if (topic === "sand/growroom/h2") { setText("gh2", value); latest.growroom.h2 = value; }
+  else if (topic === "sand/growroom/co2") { setText("gco2", value); latest.growroom.co2 = value; }
+  else if (topic === "sand/growroom/mode/status") { setMode("gmode", value); latest.growroom.mode = value === "1" ? "AUTO" : "MANUAL"; }
+  else if (topic === "sand/growroom/fan/status") { setOnOff("gfan", value); latest.growroom.fan = value === "1" ? "ON" : "OFF"; }
+  else if (topic === "sand/growroom/pump/status") { setOnOff("gpump", value); latest.growroom.pump = value === "1" ? "ON" : "OFF"; }
+  else if (topic === "sand/growroom/inlet/status") { setOnOff("ginlet", value); latest.growroom.inlet = value === "1" ? "ON" : "OFF"; }
+  else if (topic === "sand/growroom/status") { latest.growroom.status = value; }
+  else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; }
+  else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; }
+  else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; }
+  else if (topic === "sand/incubation/h2") { setText("ih2", value); latest.incubation.h2 = value; }
+  else if (topic === "sand/incubation/co2") { setText("ico2", value); latest.incubation.co2 = value; }
+  else if (topic === "sand/incubation/mode/status") { setMode("imode", value); latest.incubation.mode = value === "1" ? "AUTO" : "MANUAL"; }
+  else if (topic === "sand/incubation/ac/status") { setOnOff("iac", value); latest.incubation.ac = value === "1" ? "ON" : "OFF"; }
+  else if (topic === "sand/incubation/fan/status") { setOnOff("ifan", value); latest.incubation.fan = value === "1" ? "ON" : "OFF"; }
+  else if (topic === "sand/incubation/status") { setText("istatus", value); latest.incubation.status = value; }
+  else if (topic.endsWith("/log/minute")) { handleMinuteJson(topic, value); }
+  else if (topic.endsWith("/log/event")) { handleEventJson(topic, value); }
+}
+
+function handleMinuteJson(topic, value){
+  try {
+    const payload = JSON.parse(value);
+    const room = topic.includes("/growroom/") ? "growroom" : "incubation";
+    latest[room].minute = payload;
+    saveMinuteRecord(room, payload);
+
+    if (room === "growroom") {
+      setText("gt1", fixed(payload.t1));
+      setText("gh1", fixed0(payload.h1));
+      setText("gt2", fixed(payload.t2));
+      setText("gh2", fixed0(payload.h2));
+      setText("gco2", fixed0(payload.co2));
+      if (payload.mode) setText("gmode", payload.mode);
+      if (payload.relay) {
+        setText("gfan", payload.relay.fan || "--");
+        setText("gpump", payload.relay.pump || "--");
+        setText("ginlet", payload.relay.inlet || "--");
+      }
+    } else {
+      setText("it1", fixed(payload.t1));
+      setText("ih1", fixed0(payload.h1));
+      setText("it2", fixed(payload.t2));
+      setText("ih2", fixed0(payload.h2));
+      setText("ico2", fixed0(payload.co2));
+      if (payload.mode) setText("imode", payload.mode);
+      if (payload.relay) {
+        setText("iac", payload.relay.ac || "--");
+        setText("ifan", payload.relay.fan || "--");
+      }
+      if (payload.health && payload.health.alarm) setText("istatus", payload.health.alarm);
+    }
+  } catch (err) {
+    console.error("Minute log parse error", err);
+  }
+}
+
+function handleEventJson(topic, value){
+  try {
+    const payload = JSON.parse(value);
+    saveAlarmHistory(payload.severity || "INFO", payload.message || "Event", payload.room || topic);
+  } catch (err) {
+    console.error("Event log parse error", err);
+  }
+}
+
+function fixed(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(1) : "--";
+}
+
+function fixed0(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(0) : "--";
 }
 
 function checkAlarm(){
-  const gt1 = parseFloat(document.getElementById("gt1").innerText);
-  const it1 = parseFloat(document.getElementById("it1").innerText);
-  const gco2 = parseFloat(document.getElementById("gco2").innerText);
-  const ico2 = parseFloat(document.getElementById("ico2").innerText);
+  const alarms = [];
+  const growTemp = Number(latest.growroom.t1);
+  const growCo2 = Number(latest.growroom.co2);
+  const incTemp = Number(latest.incubation.t1);
+  const incCo2 = Number(latest.incubation.co2);
 
-  let alarms = [];
-
-  if(gt1 > 35) alarms.push("Grow Temp High");
-  if(it1 > 35) alarms.push("Incubation Temp High");
-  if(gco2 > 1200) alarms.push("Grow CO2 High");
-  if(ico2 > 1200) alarms.push("Incubation CO2 High");
-  if(Date.now() - lastMessageTime > 60000) alarms.push("Sensor Offline / No MQTT Data");
+  if (Number.isFinite(growTemp) && growTemp > 35) alarms.push("Grow temp high");
+  if (Number.isFinite(incTemp) && incTemp > 35) alarms.push("Incubation temp high");
+  if (Number.isFinite(growCo2) && growCo2 > 1400) alarms.push("Grow CO2 high");
+  if (Number.isFinite(incCo2) && incCo2 > 1400) alarms.push("Incubation CO2 high");
+  if (lastMessageTime && Date.now() - lastMessageTime > 90000) alarms.push("Sensor offline / no MQTT data");
 
   const box = document.getElementById("alarmBox");
-
-  if(alarms.length > 0){
-    const alarmMessage = alarms.join(" | ");
-    box.style.display = "block";
-    box.innerText = "ALARM: " + alarmMessage;
-
-    if(alarmMessage !== lastAlarmMessage){
-      saveAlarmHistory("CRITICAL", alarmMessage);
-      lastAlarmMessage = alarmMessage;
-      alarmAcknowledged = false;
-    }
-
-    if(!alarmAcknowledged) playAlarm();
-  }else{
+  if (!alarms.length) {
     box.style.display = "none";
     lastAlarmMessage = "";
     alarmAcknowledged = false;
-    stopAlarm();
-  }
-}
-
-function saveAlarmHistory(level, msg){
-  let logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
-  logs.unshift({
-    time: new Date().toLocaleString(),
-    level: level,
-    message: msg,
-    gt1: document.getElementById("gt1").innerText,
-    gt2: document.getElementById("gt2").innerText,
-    gco2: document.getElementById("gco2").innerText,
-    it1: document.getElementById("it1").innerText,
-    it2: document.getElementById("it2").innerText,
-    ico2: document.getElementById("ico2").innerText
-  });
-  logs = logs.slice(0,100);
-  localStorage.setItem("alarmLogs", JSON.stringify(logs));
-}
-
-function showAlarmHistory(){
-  const box = document.getElementById("historyBox");
-  const logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
-
-  box.style.display = box.style.display === "block" ? "none" : "block";
-
-  if(logs.length === 0){
-    box.innerHTML = "No alarm history";
     return;
   }
 
-  box.innerHTML = "<h3>Alarm History</h3>" + logs.map(l =>
-    `<div style="border-bottom:1px solid #30363d;padding:6px">
-      <b>${l.level}</b> - ${l.message}<br>
-      <small>${l.time}</small>
-    </div>`
+  const message = alarms.join(" | ");
+  box.style.display = "block";
+  box.textContent = "ALARM: " + message;
+  if (message !== lastAlarmMessage) {
+    saveAlarmHistory("CRITICAL", message, "global");
+    lastAlarmMessage = message;
+    alarmAcknowledged = false;
+  }
+}
+
+function saveAlarmHistory(level, message, room){
+  const logs = JSON.parse(localStorage.getItem("twisha_alarm_logs") || "[]");
+  logs.unshift({ time: new Date().toLocaleString(), level, room, message });
+  localStorage.setItem("twisha_alarm_logs", JSON.stringify(logs.slice(0, 200)));
+  if (historyVisible) renderHistory();
+}
+
+function saveMinuteRecord(room, payload){
+  const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
+  if (!store[room]) store[room] = [];
+  store[room].push({
+    timestamp: payload.timestamp || new Date().toISOString(),
+    room: payload.room || room,
+    t1: payload.t1,
+    h1: payload.h1,
+    t2: payload.t2,
+    h2: payload.h2,
+    avgTemp: payload.avgTemp,
+    avgHum: payload.avgHum,
+    co2: payload.co2,
+    mode: payload.mode,
+    relay: payload.relay || {},
+    health: payload.health || {}
+  });
+  store[room] = store[room].slice(-50000);
+  localStorage.setItem("twisha_minute_logs", JSON.stringify(store));
+}
+
+function toggleHistory(){
+  historyVisible = !historyVisible;
+  document.getElementById("historyBox").style.display = historyVisible ? "block" : "none";
+  if (historyVisible) renderHistory();
+}
+
+function renderHistory(){
+  const logs = JSON.parse(localStorage.getItem("twisha_alarm_logs") || "[]");
+  const box = document.getElementById("historyBox");
+  if (!logs.length) {
+    box.innerHTML = "<strong>No alarm history yet.</strong>";
+    return;
+  }
+  box.innerHTML = logs.map(item =>
+    `<div class="historyItem"><strong>${item.level}</strong> | ${item.room}<br>${item.message}<br><small>${item.time}</small></div>`
   ).join("");
 }
 
-function downloadCSV(){
-  const logs = JSON.parse(localStorage.getItem("alarmLogs") || "[]");
-  let csv = "Time,Level,Message,Grow T1,Grow T2,Grow CO2,Inc T1,Inc T2,Inc CO2\n";
-
-  logs.forEach(l=>{
-    csv += `"${l.time}","${l.level}","${l.message}","${l.gt1}","${l.gt2}","${l.gco2}","${l.it1}","${l.it2}","${l.ico2}"\n`;
-  });
-
-  const blob = new Blob([csv], {type:"text/csv"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "twisha_alarm_history.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+function toggleLiveLog(){
+  liveVisible = !liveVisible;
+  document.getElementById("liveBox").style.display = liveVisible ? "block" : "none";
+  if (liveVisible && !document.getElementById("liveBox").innerHTML.trim()) {
+    document.getElementById("liveBox").innerHTML = "<div class='liveItem'>Waiting for live MQTT data...</div>";
+  }
 }
 
-function downloadDailyReport(){
+function addLiveLine(topic, value){
+  if (!liveVisible) return;
+  const box = document.getElementById("liveBox");
+  const line = document.createElement("div");
+  line.className = "liveItem";
+  line.textContent = new Date().toLocaleTimeString() + " | " + topic + " | " + value;
+  box.prepend(line);
+  while (box.children.length > 120) box.removeChild(box.lastChild);
+}
+
+function downloadMonthlyCSV(){
+  const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
+  const rows = [
+    "timestamp,room,t1,h1,t2,h2,avgTemp,avgHum,co2,mode,relay1,relay2,relay3,wifi,mqtt,controller,alarm"
+  ];
+  ["growroom","incubation"].forEach(room => {
+    (store[room] || []).forEach(item => {
+      rows.push([
+        csvSafe(item.timestamp),
+        csvSafe(item.room),
+        csvSafe(item.t1),
+        csvSafe(item.h1),
+        csvSafe(item.t2),
+        csvSafe(item.h2),
+        csvSafe(item.avgTemp),
+        csvSafe(item.avgHum),
+        csvSafe(item.co2),
+        csvSafe(item.mode),
+        csvSafe(item.relay.pump || item.relay.ac || ""),
+        csvSafe(item.relay.fan || ""),
+        csvSafe(item.relay.inlet || ""),
+        csvSafe(item.health.wifi || ""),
+        csvSafe(item.health.mqtt || ""),
+        csvSafe(item.health.controller || ""),
+        csvSafe(item.health.alarm || "")
+      ].join(","));
+    });
+  });
+  const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "twisha_monthly_global_log.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function printMonthlyReport(){
   window.print();
 }
 
 function sendWhatsAppAlert(){
-  const msg =
-`TWISHA TERRAFARMS ALERT
-Grow Temp1: ${document.getElementById("gt1").innerText}
-Grow Temp2: ${document.getElementById("gt2").innerText}
-Grow CO2: ${document.getElementById("gco2").innerText}
-Inc Temp1: ${document.getElementById("it1").innerText}
-Inc Temp2: ${document.getElementById("it2").innerText}
-Inc CO2: ${document.getElementById("ico2").innerText}
-Status: ${document.getElementById("alarmBox").innerText}`;
-
+  const msg = [
+    "TWISHA TERRAFARMS SCADA ALERT",
+    "Grow T1: " + (latest.growroom.t1 || "--"),
+    "Grow CO2: " + (latest.growroom.co2 || "--"),
+    "Grow Mode: " + (latest.growroom.mode || "--"),
+    "Incubation T1: " + (latest.incubation.t1 || "--"),
+    "Incubation CO2: " + (latest.incubation.co2 || "--"),
+    "Incubation Mode: " + (latest.incubation.mode || "--"),
+    "Alarm: " + (lastAlarmMessage || "No active alarm")
+  ].join("\n");
   window.open("https://wa.me/918800466063?text=" + encodeURIComponent(msg), "_blank");
 }
 
-
-client.on("message", (topic, message) => {
-  const v = message.toString();
-  lastMessageTime = Date.now();
-  updateLastTime();
-
-  if(topic === "sand/growroom/t1") setText("gt1", v);
-  else if(topic === "sand/growroom/h1") setText("gh1", v);
-  else if(topic === "sand/growroom/t2") setText("gt2", v);
-  else if(topic === "sand/growroom/h2") setText("gh2", v);
-  else if(topic === "sand/growroom/co2") setText("gco2", v);
-  else if(topic === "sand/growroom/mode/status") updateMode("gmode", v);
-  else if(topic === "sand/growroom/fan/status") updateOnOff("gfan", v);
-  else if(topic === "sand/growroom/pump/status") updateOnOff("gpump", v);
-  else if(topic === "sand/growroom/inlet/status") updateOnOff("ginlet", v);
-
-  else if(topic === "sand/incubation/t1") setText("it1", v);
-  else if(topic === "sand/incubation/h1") setText("ih1", v);
-  else if(topic === "sand/incubation/t2") setText("it2", v);
-  else if(topic === "sand/incubation/h2") setText("ih2", v);
-  else if(topic === "sand/incubation/co2") setText("ico2", v);
-  else if(topic === "sand/incubation/mode/status") updateMode("imode", v);
-  else if(topic === "sand/incubation/ac/status") updateOnOff("iac", v);
-  else if(topic === "sand/incubation/fan/status") updateOnOff("ifan", v);
-
-  checkAlarm();
-});
+function csvSafe(value){
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
 
 setInterval(checkAlarm, 5000);
-
-function openLogSheet() {
-  window.open(
-    "https://docs.google.com/spreadsheets/d/1GRV8JySYTPmEGvts4WMmEGOvP3JV1sCoacphgv5HaCo/edit",
-    "_blank"
-  );
-}
 </script>
-
 </body>
 </html>
