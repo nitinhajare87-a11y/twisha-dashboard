@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TWISHA TERRAFARMS MUSHROOM FARMHOUSE SCADA</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+const TELEGRAM_ALERT_URL = "https://web.telegram.org/a/#8789098577";
+const TELEGRAM_RELAY_URL = "https://script.google.com/macros/s/AKfycbyHFIZZxXGmGSrMXCMj_MmOdd5bkfL9FtFlis2jsIaN7GOpFooV9CKt9Ei8VqMe7WAGVg/exec";
+const TELEGRAM_RELAY_TOKEN = "TWISHA_2026_HAJARE_9X7P4K8M2L7387";
+</script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -90,7 +95,7 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
     <button class="btn gray" onclick="toggleHistory()">SHOW HISTORY</button>
     <button class="btn green" onclick="downloadMonthlyCSV()">DOWNLOAD MONTH CSV</button>
     <button class="btn green" onclick="printMonthlyReport()">MONTHLY REPORT / PRINT</button>
-    <button class="btn red" onclick="sendWhatsAppAlert()">WHATSAPP ALERT</button>
+    <button class="btn red" onclick="sendTelegramAlert()">TELEGRAM ALERT</button>
   </section>
 
   <div id="historyBox" class="history"></div>
@@ -348,7 +353,7 @@ function saveAlarmHistory(level, message, room){
 function saveMinuteRecord(room, payload){
   const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
   if (!store[room]) store[room] = [];
-  store[room].push({
+  const normalized = {
     timestamp: payload.timestamp || new Date().toISOString(),
     room: payload.room || room,
     t1: payload.t1,
@@ -361,7 +366,15 @@ function saveMinuteRecord(room, payload){
     mode: payload.mode,
     relay: payload.relay || {},
     health: payload.health || {}
-  });
+  };
+  const key = minuteKey(normalized.timestamp);
+  const existingIndex = store[room].findIndex(item => minuteKey(item.timestamp) === key);
+  if (existingIndex >= 0) {
+    store[room][existingIndex] = normalized;
+  } else {
+    store[room].push(normalized);
+  }
+  store[room].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   store[room] = store[room].slice(-50000);
   localStorage.setItem("twisha_minute_logs", JSON.stringify(store));
 }
@@ -404,31 +417,32 @@ function addLiveLine(topic, value){
 
 function downloadMonthlyCSV(){
   const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
+  const combined = buildCombinedMinuteRows(store);
   const rows = [
-    "timestamp,room,t1,h1,t2,h2,avgTemp,avgHum,co2,mode,relay1,relay2,relay3,wifi,mqtt,controller,alarm"
+    "DateTime,Grow T1,Grow H1,Grow T2,Grow H2,Grow CO2,Grow Mode,Grow Fan,Grow Pump,Grow Inlet,Inc T1,Inc H1,Inc T2,Inc H2,Inc CO2,Inc Mode,Inc AC,Inc Fan,Remarks"
   ];
-  ["growroom","incubation"].forEach(room => {
-    (store[room] || []).forEach(item => {
-      rows.push([
-        csvSafe(item.timestamp),
-        csvSafe(item.room),
-        csvSafe(item.t1),
-        csvSafe(item.h1),
-        csvSafe(item.t2),
-        csvSafe(item.h2),
-        csvSafe(item.avgTemp),
-        csvSafe(item.avgHum),
-        csvSafe(item.co2),
-        csvSafe(item.mode),
-        csvSafe(item.relay.pump || item.relay.ac || ""),
-        csvSafe(item.relay.fan || ""),
-        csvSafe(item.relay.inlet || ""),
-        csvSafe(item.health.wifi || ""),
-        csvSafe(item.health.mqtt || ""),
-        csvSafe(item.health.controller || ""),
-        csvSafe(item.health.alarm || "")
-      ].join(","));
-    });
+  combined.forEach(item => {
+    rows.push([
+      csvSafe(formatDisplayDateTime(item.timestamp)),
+      csvSafe(item.grow.t1),
+      csvSafe(item.grow.h1),
+      csvSafe(item.grow.t2),
+      csvSafe(item.grow.h2),
+      csvSafe(item.grow.co2),
+      csvSafe(item.grow.mode),
+      csvSafe(item.grow.fan),
+      csvSafe(item.grow.pump),
+      csvSafe(item.grow.inlet),
+      csvSafe(item.inc.t1),
+      csvSafe(item.inc.h1),
+      csvSafe(item.inc.t2),
+      csvSafe(item.inc.h2),
+      csvSafe(item.inc.co2),
+      csvSafe(item.inc.mode),
+      csvSafe(item.inc.ac),
+      csvSafe(item.inc.fan),
+      csvSafe("Auto 1 min combined log")
+    ].join(","));
   });
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
@@ -442,22 +456,122 @@ function printMonthlyReport(){
   window.print();
 }
 
-function sendWhatsAppAlert(){
-  const msg = [
-    "TWISHA TERRAFARMS SCADA ALERT",
-    "Grow T1: " + (latest.growroom.t1 || "--"),
-    "Grow CO2: " + (latest.growroom.co2 || "--"),
-    "Grow Mode: " + (latest.growroom.mode || "--"),
-    "Incubation T1: " + (latest.incubation.t1 || "--"),
-    "Incubation CO2: " + (latest.incubation.co2 || "--"),
-    "Incubation Mode: " + (latest.incubation.mode || "--"),
-    "Alarm: " + (lastAlarmMessage || "No active alarm")
-  ].join("\n");
-  window.open("https://wa.me/918800466063?text=" + encodeURIComponent(msg), "_blank");
+async function sendTelegramAlert(){
+  if (TELEGRAM_RELAY_URL.indexOf("PASTE_") === 0) {
+    alert("Google Apps Script relay URL set nahi hai. Pehle relay URL configure karo.");
+    return;
+  }
+
+  const payload = {
+    token: TELEGRAM_RELAY_TOKEN,
+    action: "telegram_alert",
+    growT1: latest.growroom.t1 || "--",
+    growH1: latest.growroom.h1 || "--",
+    growT2: latest.growroom.t2 || "--",
+    growH2: latest.growroom.h2 || "--",
+    growCo2: latest.growroom.co2 || "--",
+    growMode: latest.growroom.mode || "--",
+    growFan: latest.growroom.fan || "--",
+    growPump: latest.growroom.pump || "--",
+    growInlet: latest.growroom.inlet || "--",
+    incT1: latest.incubation.t1 || "--",
+    incH1: latest.incubation.h1 || "--",
+    incT2: latest.incubation.t2 || "--",
+    incH2: latest.incubation.h2 || "--",
+    incCo2: latest.incubation.co2 || "--",
+    incMode: latest.incubation.mode || "--",
+    incAc: latest.incubation.ac || "--",
+    incFan: latest.incubation.fan || "--",
+    incStatus: document.getElementById("istatus")?.innerText || "--",
+    alarmMessage: lastAlarmMessage || "No active alarm"
+  };
+
+  try {
+    await fetch(TELEGRAM_RELAY_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    alert("Telegram alert request send ho gayi. 5-10 second me bot/chat check karo.");
+  } catch (error) {
+    alert("Telegram relay connect nahi hua. Manual Telegram open kar raha hoon.");
+    window.open(TELEGRAM_ALERT_URL, "_blank");
+  }
 }
 
 function csvSafe(value){
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function minuteKey(timestamp){
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return String(timestamp || "");
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatDisplayDateTime(timestamp){
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp || "";
+  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+}
+
+function emptyRoomRow(){
+  return { t1:"", h1:"", t2:"", h2:"", co2:"", mode:"", fan:"", pump:"", inlet:"", ac:"" };
+}
+
+function buildCombinedMinuteRows(store){
+  const map = new Map();
+  ["growroom", "incubation"].forEach(roomName => {
+    (store[roomName] || []).forEach(item => {
+      const key = minuteKey(item.timestamp);
+      if (!map.has(key)) {
+        map.set(key, {
+          timestamp: item.timestamp,
+          grow: emptyRoomRow(),
+          inc: emptyRoomRow()
+        });
+      }
+      const row = map.get(key);
+      if (new Date(item.timestamp) > new Date(row.timestamp)) {
+        row.timestamp = item.timestamp;
+      }
+      if (roomName === "growroom") {
+        row.grow = {
+          t1: item.t1 ?? "",
+          h1: item.h1 ?? "",
+          t2: item.t2 ?? "",
+          h2: item.h2 ?? "",
+          co2: item.co2 ?? "",
+          mode: item.mode ?? "",
+          fan: boolText(item.relay?.fan),
+          pump: boolText(item.relay?.pump),
+          inlet: boolText(item.relay?.inlet),
+          ac: ""
+        };
+      } else {
+        row.inc = {
+          t1: item.t1 ?? "",
+          h1: item.h1 ?? "",
+          t2: item.t2 ?? "",
+          h2: item.h2 ?? "",
+          co2: item.co2 ?? "",
+          mode: item.mode ?? "",
+          fan: boolText(item.relay?.fan),
+          pump: "",
+          inlet: "",
+          ac: boolText(item.relay?.ac)
+        };
+      }
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function boolText(value){
+  if (value === true || value === "true" || value === "ON") return "ON";
+  if (value === false || value === "false" || value === "OFF") return "OFF";
+  return value ?? "";
 }
 
 setInterval(checkAlarm, 5000);
