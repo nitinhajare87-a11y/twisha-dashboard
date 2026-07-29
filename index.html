@@ -46,12 +46,14 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
 .room{padding:16px}
 .roomTitle{text-align:center;font-size:clamp(26px,2.4vw,40px);font-weight:900;color:var(--green);text-shadow:0 0 12px rgba(16,243,123,.45);margin:0 0 14px}
 .grid{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}
-.card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px 10px;min-height:92px;text-align:center}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px 10px;min-height:92px;text-align:center;overflow:hidden}
 .label{color:#8fb4d7;font-size:15px}
-.val{margin-top:10px;font-size:31px;font-weight:900;color:#14f48c}
+.val{margin-top:10px;font-size:31px;font-weight:900;color:#14f48c;line-height:1.12}
 .val.gray{color:#9ea8b5}
 .val.auto{color:var(--cyan)}
 .val.manual{color:var(--amber)}
+#imode,#gmode{font-size:24px;line-height:1.08;letter-spacing:.01em}
+#istatus{font-size:16px;line-height:1.08;letter-spacing:.01em;word-break:break-word;overflow-wrap:anywhere}
 .controlBar{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:14px}
 .controlBtn{border:0;border-radius:12px;padding:12px 16px;color:#fff;font-weight:800;cursor:pointer}
 .controlBtn.on{background:#0fd45b}
@@ -72,6 +74,8 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
   .toolbar{grid-template-columns:1fr}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .btn,.controlBtn{font-size:15px}
+  #imode,#gmode{font-size:18px;line-height:1.05}
+  #istatus{font-size:13px;line-height:1.05}
 }
 </style>
 </head>
