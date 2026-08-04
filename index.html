@@ -67,7 +67,7 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
 .val.auto{color:var(--cyan)}
 .val.manual{color:var(--amber)}
 #imode,#gmode{font-size:24px;line-height:1.08;letter-spacing:.01em}
-#istatus{font-size:16px;line-height:1.08;letter-spacing:.01em;word-break:break-word;overflow-wrap:anywhere}
+#gstatus,#istatus{font-size:16px;line-height:1.08;letter-spacing:.01em;word-break:break-word;overflow-wrap:anywhere}
 .controlBar{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:14px}
 .controlBtn{border:0;border-radius:12px;padding:12px 16px;color:#fff;font-weight:800;cursor:pointer}
 .controlBtn.on{background:#0fd45b}
@@ -89,7 +89,7 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .btn,.controlBtn{font-size:15px}
   #imode,#gmode{font-size:18px;line-height:1.05}
-  #istatus{font-size:13px;line-height:1.05}
+  #gstatus,#istatus{font-size:13px;line-height:1.05}
 }
 </style>
 </head>
@@ -132,6 +132,7 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
         <div class="card"><div class="label">Fan</div><div id="gfan" class="val gray">--</div></div>
         <div class="card"><div class="label">Pump</div><div id="gpump" class="val gray">--</div></div>
         <div class="card"><div class="label">Inlet</div><div id="ginlet" class="val gray">--</div></div>
+        <div class="card"><div class="label">Status</div><div id="gstatus" class="val gray">--</div></div>
       </div>
       <div class="controlBar">
         <button class="controlBtn on" onclick="pub('sand/growroom/mode/set','1')">AUTO</button>
@@ -236,7 +237,7 @@ function roomHasValidReadings(room){
 }
 
 function refreshRoomStatus(room){
-  const statusId = room === "incubation" ? "istatus" : null;
+  const statusId = room === "growroom" ? "gstatus" : room === "incubation" ? "istatus" : null;
   if (!statusId) return;
 
   const rawStatus = normalizeRoomStatus(latest[room].status);
@@ -278,16 +279,16 @@ function resetRoom(topic, roomName){
 }
 
 function handleTopic(topic, value){
-  if (topic === "sand/growroom/t1") { setText("gt1", value); latest.growroom.t1 = value; }
-  else if (topic === "sand/growroom/h1") { setText("gh1", value); latest.growroom.h1 = value; }
-  else if (topic === "sand/growroom/t2") { setText("gt2", value); latest.growroom.t2 = value; }
-  else if (topic === "sand/growroom/h2") { setText("gh2", value); latest.growroom.h2 = value; }
+  if (topic === "sand/growroom/t1") { setText("gt1", value); latest.growroom.t1 = value; refreshRoomStatus("growroom"); }
+  else if (topic === "sand/growroom/h1") { setText("gh1", value); latest.growroom.h1 = value; refreshRoomStatus("growroom"); }
+  else if (topic === "sand/growroom/t2") { setText("gt2", value); latest.growroom.t2 = value; refreshRoomStatus("growroom"); }
+  else if (topic === "sand/growroom/h2") { setText("gh2", value); latest.growroom.h2 = value; refreshRoomStatus("growroom"); }
   else if (topic === "sand/growroom/co2") { setText("gco2", value); latest.growroom.co2 = value; }
   else if (topic === "sand/growroom/mode/status") { setMode("gmode", value); latest.growroom.mode = value === "1" ? "AUTO" : "MANUAL"; }
   else if (topic === "sand/growroom/fan/status") { setOnOff("gfan", value); latest.growroom.fan = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/pump/status") { setOnOff("gpump", value); latest.growroom.pump = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/inlet/status") { setOnOff("ginlet", value); latest.growroom.inlet = value === "1" ? "ON" : "OFF"; }
-  else if (topic === "sand/growroom/status") { latest.growroom.status = value; }
+  else if (topic === "sand/growroom/status") { latest.growroom.status = value; refreshRoomStatus("growroom"); }
   else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; refreshRoomStatus("incubation"); }
   else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; refreshRoomStatus("incubation"); }
   else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; refreshRoomStatus("incubation"); }
@@ -320,6 +321,8 @@ function handleMinuteJson(topic, value){
         setText("gpump", payload.relay.pump || "--");
         setText("ginlet", payload.relay.inlet || "--");
       }
+      if (payload.health && payload.health.alarm) latest.growroom.status = payload.health.alarm;
+      refreshRoomStatus("growroom");
     } else {
       setText("it1", fixed(payload.t1));
       setText("ih1", fixed0(payload.h1));
