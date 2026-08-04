@@ -3,12 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#091018">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TWISHA SCADA">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./logo_hajare.png">
 <title>TWISHA TERRAFARMS MUSHROOM FARMHOUSE SCADA</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script>
 const TELEGRAM_ALERT_URL = "https://web.telegram.org/a/#8789098577";
 const TELEGRAM_RELAY_URL = "https://script.google.com/macros/s/AKfycbyHFIZZxXGmGSrMXCMj_MmOdd5bkfL9FtFlis2jsIaN7GOpFooV9CKt9Ei8VqMe7WAGVg/exec";
 const TELEGRAM_RELAY_TOKEN = "TWISHA_2026_HAJARE_9X7P4K8M2L7387";
+
+if ('serviceWorker' in navigator && /^https?:/i.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./service-worker.js').catch(function (err) {
+      console.log('Service worker register failed:', err);
+    });
+  });
+}
 </script>
 <style>
 *{box-sizing:border-box}
@@ -208,6 +222,33 @@ function setText(id, value){
   if (el) el.textContent = value;
 }
 
+function normalizeRoomStatus(value){
+  const text = String(value || "").trim().toUpperCase();
+  if (!text || text === "--") return "--";
+  if (text === "NORMAL") return "SYSTEM ONLINE";
+  if (text === "SENSOR_ERROR") return "DHT SENSOR ERROR";
+  return value;
+}
+
+function roomHasValidReadings(room){
+  const data = latest[room] || {};
+  return ["t1", "h1", "t2", "h2"].every(key => Number.isFinite(Number(data[key])));
+}
+
+function refreshRoomStatus(room){
+  const statusId = room === "incubation" ? "istatus" : null;
+  if (!statusId) return;
+
+  const rawStatus = normalizeRoomStatus(latest[room].status);
+  const liveOk = roomHasValidReadings(room);
+  const finalStatus =
+    liveOk && rawStatus === "DHT SENSOR ERROR"
+      ? "SYSTEM ONLINE"
+      : (liveOk && (!rawStatus || rawStatus === "--") ? "SYSTEM ONLINE" : rawStatus || "--");
+
+  setText(statusId, finalStatus);
+}
+
 function setMode(id, value){
   const el = document.getElementById(id);
   if (!el) return;
@@ -247,15 +288,15 @@ function handleTopic(topic, value){
   else if (topic === "sand/growroom/pump/status") { setOnOff("gpump", value); latest.growroom.pump = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/inlet/status") { setOnOff("ginlet", value); latest.growroom.inlet = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/status") { latest.growroom.status = value; }
-  else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; }
-  else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; }
-  else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; }
-  else if (topic === "sand/incubation/h2") { setText("ih2", value); latest.incubation.h2 = value; }
+  else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; refreshRoomStatus("incubation"); }
+  else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; refreshRoomStatus("incubation"); }
+  else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; refreshRoomStatus("incubation"); }
+  else if (topic === "sand/incubation/h2") { setText("ih2", value); latest.incubation.h2 = value; refreshRoomStatus("incubation"); }
   else if (topic === "sand/incubation/co2") { setText("ico2", value); latest.incubation.co2 = value; }
   else if (topic === "sand/incubation/mode/status") { setMode("imode", value); latest.incubation.mode = value === "1" ? "AUTO" : "MANUAL"; }
   else if (topic === "sand/incubation/ac/status") { setOnOff("iac", value); latest.incubation.ac = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/incubation/fan/status") { setOnOff("ifan", value); latest.incubation.fan = value === "1" ? "ON" : "OFF"; }
-  else if (topic === "sand/incubation/status") { setText("istatus", value); latest.incubation.status = value; }
+  else if (topic === "sand/incubation/status") { latest.incubation.status = value; refreshRoomStatus("incubation"); }
   else if (topic.endsWith("/log/minute")) { handleMinuteJson(topic, value); }
   else if (topic.endsWith("/log/event")) { handleEventJson(topic, value); }
 }
@@ -290,7 +331,8 @@ function handleMinuteJson(topic, value){
         setText("iac", payload.relay.ac || "--");
         setText("ifan", payload.relay.fan || "--");
       }
-      if (payload.health && payload.health.alarm) setText("istatus", payload.health.alarm);
+      if (payload.health && payload.health.alarm) latest.incubation.status = payload.health.alarm;
+      refreshRoomStatus("incubation");
     }
   } catch (err) {
     console.error("Minute log parse error", err);
