@@ -3,27 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#091018">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TWISHA SCADA">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./logo_hajare.png">
 <title>TWISHA TERRAFARMS MUSHROOM FARMHOUSE SCADA</title>
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<script>
-const TELEGRAM_ALERT_URL = "https://web.telegram.org/a/#8789098577";
-const TELEGRAM_RELAY_URL = "https://script.google.com/macros/s/AKfycbyHFIZZxXGmGSrMXCMj_MmOdd5bkfL9FtFlis2jsIaN7GOpFooV9CKt9Ei8VqMe7WAGVg/exec";
-const TELEGRAM_RELAY_TOKEN = "TWISHA_2026_HAJARE_9X7P4K8M2L7387";
-
-if ('serviceWorker' in navigator && /^https?:/i.test(location.protocol)) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./service-worker.js').catch(function (err) {
-      console.log('Service worker register failed:', err);
-    });
-  });
-}
-</script>
+<script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -60,14 +41,12 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
 .room{padding:16px}
 .roomTitle{text-align:center;font-size:clamp(26px,2.4vw,40px);font-weight:900;color:var(--green);text-shadow:0 0 12px rgba(16,243,123,.45);margin:0 0 14px}
 .grid{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}
-.card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px 10px;min-height:92px;text-align:center;overflow:hidden}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px 10px;min-height:92px;text-align:center}
 .label{color:#8fb4d7;font-size:15px}
-.val{margin-top:10px;font-size:31px;font-weight:900;color:#14f48c;line-height:1.12}
+.val{margin-top:10px;font-size:31px;font-weight:900;color:#14f48c}
 .val.gray{color:#9ea8b5}
 .val.auto{color:var(--cyan)}
 .val.manual{color:var(--amber)}
-#imode,#gmode{font-size:24px;line-height:1.08;letter-spacing:.01em}
-#gstatus,#istatus{font-size:16px;line-height:1.08;letter-spacing:.01em;word-break:break-word;overflow-wrap:anywhere}
 .controlBar{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:14px}
 .controlBtn{border:0;border-radius:12px;padding:12px 16px;color:#fff;font-weight:800;cursor:pointer}
 .controlBtn.on{background:#0fd45b}
@@ -88,8 +67,6 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
   .toolbar{grid-template-columns:1fr}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .btn,.controlBtn{font-size:15px}
-  #imode,#gmode{font-size:18px;line-height:1.05}
-  #gstatus,#istatus{font-size:13px;line-height:1.05}
 }
 </style>
 </head>
@@ -113,7 +90,7 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
     <button class="btn gray" onclick="toggleHistory()">SHOW HISTORY</button>
     <button class="btn green" onclick="downloadMonthlyCSV()">DOWNLOAD MONTH CSV</button>
     <button class="btn green" onclick="printMonthlyReport()">MONTHLY REPORT / PRINT</button>
-    <button class="btn red" onclick="sendTelegramAlert()">TELEGRAM ALERT</button>
+    <button class="btn red" onclick="sendWhatsAppAlert()">WHATSAPP ALERT</button>
   </section>
 
   <div id="historyBox" class="history"></div>
@@ -132,7 +109,6 @@ body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at 
         <div class="card"><div class="label">Fan</div><div id="gfan" class="val gray">--</div></div>
         <div class="card"><div class="label">Pump</div><div id="gpump" class="val gray">--</div></div>
         <div class="card"><div class="label">Inlet</div><div id="ginlet" class="val gray">--</div></div>
-        <div class="card"><div class="label">Status</div><div id="gstatus" class="val gray">--</div></div>
       </div>
       <div class="controlBar">
         <button class="controlBtn on" onclick="pub('sand/growroom/mode/set','1')">AUTO</button>
@@ -223,33 +199,6 @@ function setText(id, value){
   if (el) el.textContent = value;
 }
 
-function normalizeRoomStatus(value){
-  const text = String(value || "").trim().toUpperCase();
-  if (!text || text === "--") return "--";
-  if (text === "NORMAL") return "SYSTEM ONLINE";
-  if (text === "SENSOR_ERROR") return "DHT SENSOR ERROR";
-  return value;
-}
-
-function roomHasValidReadings(room){
-  const data = latest[room] || {};
-  return ["t1", "h1", "t2", "h2"].every(key => Number.isFinite(Number(data[key])));
-}
-
-function refreshRoomStatus(room){
-  const statusId = room === "growroom" ? "gstatus" : room === "incubation" ? "istatus" : null;
-  if (!statusId) return;
-
-  const rawStatus = normalizeRoomStatus(latest[room].status);
-  const liveOk = roomHasValidReadings(room);
-  const finalStatus =
-    liveOk && rawStatus === "DHT SENSOR ERROR"
-      ? "SYSTEM ONLINE"
-      : (liveOk && (!rawStatus || rawStatus === "--") ? "SYSTEM ONLINE" : rawStatus || "--");
-
-  setText(statusId, finalStatus);
-}
-
 function setMode(id, value){
   const el = document.getElementById(id);
   if (!el) return;
@@ -279,25 +228,25 @@ function resetRoom(topic, roomName){
 }
 
 function handleTopic(topic, value){
-  if (topic === "sand/growroom/t1") { setText("gt1", value); latest.growroom.t1 = value; refreshRoomStatus("growroom"); }
-  else if (topic === "sand/growroom/h1") { setText("gh1", value); latest.growroom.h1 = value; refreshRoomStatus("growroom"); }
-  else if (topic === "sand/growroom/t2") { setText("gt2", value); latest.growroom.t2 = value; refreshRoomStatus("growroom"); }
-  else if (topic === "sand/growroom/h2") { setText("gh2", value); latest.growroom.h2 = value; refreshRoomStatus("growroom"); }
+  if (topic === "sand/growroom/t1") { setText("gt1", value); latest.growroom.t1 = value; }
+  else if (topic === "sand/growroom/h1") { setText("gh1", value); latest.growroom.h1 = value; }
+  else if (topic === "sand/growroom/t2") { setText("gt2", value); latest.growroom.t2 = value; }
+  else if (topic === "sand/growroom/h2") { setText("gh2", value); latest.growroom.h2 = value; }
   else if (topic === "sand/growroom/co2") { setText("gco2", value); latest.growroom.co2 = value; }
   else if (topic === "sand/growroom/mode/status") { setMode("gmode", value); latest.growroom.mode = value === "1" ? "AUTO" : "MANUAL"; }
   else if (topic === "sand/growroom/fan/status") { setOnOff("gfan", value); latest.growroom.fan = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/pump/status") { setOnOff("gpump", value); latest.growroom.pump = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/growroom/inlet/status") { setOnOff("ginlet", value); latest.growroom.inlet = value === "1" ? "ON" : "OFF"; }
-  else if (topic === "sand/growroom/status") { latest.growroom.status = value; refreshRoomStatus("growroom"); }
-  else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; refreshRoomStatus("incubation"); }
-  else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; refreshRoomStatus("incubation"); }
-  else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; refreshRoomStatus("incubation"); }
-  else if (topic === "sand/incubation/h2") { setText("ih2", value); latest.incubation.h2 = value; refreshRoomStatus("incubation"); }
+  else if (topic === "sand/growroom/status") { latest.growroom.status = value; }
+  else if (topic === "sand/incubation/t1") { setText("it1", value); latest.incubation.t1 = value; }
+  else if (topic === "sand/incubation/h1") { setText("ih1", value); latest.incubation.h1 = value; }
+  else if (topic === "sand/incubation/t2") { setText("it2", value); latest.incubation.t2 = value; }
+  else if (topic === "sand/incubation/h2") { setText("ih2", value); latest.incubation.h2 = value; }
   else if (topic === "sand/incubation/co2") { setText("ico2", value); latest.incubation.co2 = value; }
   else if (topic === "sand/incubation/mode/status") { setMode("imode", value); latest.incubation.mode = value === "1" ? "AUTO" : "MANUAL"; }
   else if (topic === "sand/incubation/ac/status") { setOnOff("iac", value); latest.incubation.ac = value === "1" ? "ON" : "OFF"; }
   else if (topic === "sand/incubation/fan/status") { setOnOff("ifan", value); latest.incubation.fan = value === "1" ? "ON" : "OFF"; }
-  else if (topic === "sand/incubation/status") { latest.incubation.status = value; refreshRoomStatus("incubation"); }
+  else if (topic === "sand/incubation/status") { setText("istatus", value); latest.incubation.status = value; }
   else if (topic.endsWith("/log/minute")) { handleMinuteJson(topic, value); }
   else if (topic.endsWith("/log/event")) { handleEventJson(topic, value); }
 }
@@ -321,8 +270,6 @@ function handleMinuteJson(topic, value){
         setText("gpump", payload.relay.pump || "--");
         setText("ginlet", payload.relay.inlet || "--");
       }
-      if (payload.health && payload.health.alarm) latest.growroom.status = payload.health.alarm;
-      refreshRoomStatus("growroom");
     } else {
       setText("it1", fixed(payload.t1));
       setText("ih1", fixed0(payload.h1));
@@ -334,8 +281,7 @@ function handleMinuteJson(topic, value){
         setText("iac", payload.relay.ac || "--");
         setText("ifan", payload.relay.fan || "--");
       }
-      if (payload.health && payload.health.alarm) latest.incubation.status = payload.health.alarm;
-      refreshRoomStatus("incubation");
+      if (payload.health && payload.health.alarm) setText("istatus", payload.health.alarm);
     }
   } catch (err) {
     console.error("Minute log parse error", err);
@@ -402,7 +348,7 @@ function saveAlarmHistory(level, message, room){
 function saveMinuteRecord(room, payload){
   const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
   if (!store[room]) store[room] = [];
-  const normalized = {
+  store[room].push({
     timestamp: payload.timestamp || new Date().toISOString(),
     room: payload.room || room,
     t1: payload.t1,
@@ -415,15 +361,7 @@ function saveMinuteRecord(room, payload){
     mode: payload.mode,
     relay: payload.relay || {},
     health: payload.health || {}
-  };
-  const key = minuteKey(normalized.timestamp);
-  const existingIndex = store[room].findIndex(item => minuteKey(item.timestamp) === key);
-  if (existingIndex >= 0) {
-    store[room][existingIndex] = normalized;
-  } else {
-    store[room].push(normalized);
-  }
-  store[room].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  });
   store[room] = store[room].slice(-50000);
   localStorage.setItem("twisha_minute_logs", JSON.stringify(store));
 }
@@ -466,32 +404,31 @@ function addLiveLine(topic, value){
 
 function downloadMonthlyCSV(){
   const store = JSON.parse(localStorage.getItem("twisha_minute_logs") || "{}");
-  const combined = buildCombinedMinuteRows(store);
   const rows = [
-    "DateTime,Grow T1,Grow H1,Grow T2,Grow H2,Grow CO2,Grow Mode,Grow Fan,Grow Pump,Grow Inlet,Inc T1,Inc H1,Inc T2,Inc H2,Inc CO2,Inc Mode,Inc AC,Inc Fan,Remarks"
+    "timestamp,room,t1,h1,t2,h2,avgTemp,avgHum,co2,mode,relay1,relay2,relay3,wifi,mqtt,controller,alarm"
   ];
-  combined.forEach(item => {
-    rows.push([
-      csvSafe(formatDisplayDateTime(item.timestamp)),
-      csvSafe(item.grow.t1),
-      csvSafe(item.grow.h1),
-      csvSafe(item.grow.t2),
-      csvSafe(item.grow.h2),
-      csvSafe(item.grow.co2),
-      csvSafe(item.grow.mode),
-      csvSafe(item.grow.fan),
-      csvSafe(item.grow.pump),
-      csvSafe(item.grow.inlet),
-      csvSafe(item.inc.t1),
-      csvSafe(item.inc.h1),
-      csvSafe(item.inc.t2),
-      csvSafe(item.inc.h2),
-      csvSafe(item.inc.co2),
-      csvSafe(item.inc.mode),
-      csvSafe(item.inc.ac),
-      csvSafe(item.inc.fan),
-      csvSafe("Auto 1 min combined log")
-    ].join(","));
+  ["growroom","incubation"].forEach(room => {
+    (store[room] || []).forEach(item => {
+      rows.push([
+        csvSafe(item.timestamp),
+        csvSafe(item.room),
+        csvSafe(item.t1),
+        csvSafe(item.h1),
+        csvSafe(item.t2),
+        csvSafe(item.h2),
+        csvSafe(item.avgTemp),
+        csvSafe(item.avgHum),
+        csvSafe(item.co2),
+        csvSafe(item.mode),
+        csvSafe(item.relay.pump || item.relay.ac || ""),
+        csvSafe(item.relay.fan || ""),
+        csvSafe(item.relay.inlet || ""),
+        csvSafe(item.health.wifi || ""),
+        csvSafe(item.health.mqtt || ""),
+        csvSafe(item.health.controller || ""),
+        csvSafe(item.health.alarm || "")
+      ].join(","));
+    });
   });
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
@@ -505,122 +442,22 @@ function printMonthlyReport(){
   window.print();
 }
 
-async function sendTelegramAlert(){
-  if (TELEGRAM_RELAY_URL.indexOf("PASTE_") === 0) {
-    alert("Google Apps Script relay URL set nahi hai. Pehle relay URL configure karo.");
-    return;
-  }
-
-  const payload = {
-    token: TELEGRAM_RELAY_TOKEN,
-    action: "telegram_alert",
-    growT1: latest.growroom.t1 || "--",
-    growH1: latest.growroom.h1 || "--",
-    growT2: latest.growroom.t2 || "--",
-    growH2: latest.growroom.h2 || "--",
-    growCo2: latest.growroom.co2 || "--",
-    growMode: latest.growroom.mode || "--",
-    growFan: latest.growroom.fan || "--",
-    growPump: latest.growroom.pump || "--",
-    growInlet: latest.growroom.inlet || "--",
-    incT1: latest.incubation.t1 || "--",
-    incH1: latest.incubation.h1 || "--",
-    incT2: latest.incubation.t2 || "--",
-    incH2: latest.incubation.h2 || "--",
-    incCo2: latest.incubation.co2 || "--",
-    incMode: latest.incubation.mode || "--",
-    incAc: latest.incubation.ac || "--",
-    incFan: latest.incubation.fan || "--",
-    incStatus: document.getElementById("istatus")?.innerText || "--",
-    alarmMessage: lastAlarmMessage || "No active alarm"
-  };
-
-  try {
-    await fetch(TELEGRAM_RELAY_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
-    });
-    alert("Telegram alert request send ho gayi. 5-10 second me bot/chat check karo.");
-  } catch (error) {
-    alert("Telegram relay connect nahi hua. Manual Telegram open kar raha hoon.");
-    window.open(TELEGRAM_ALERT_URL, "_blank");
-  }
+function sendWhatsAppAlert(){
+  const msg = [
+    "TWISHA TERRAFARMS SCADA ALERT",
+    "Grow T1: " + (latest.growroom.t1 || "--"),
+    "Grow CO2: " + (latest.growroom.co2 || "--"),
+    "Grow Mode: " + (latest.growroom.mode || "--"),
+    "Incubation T1: " + (latest.incubation.t1 || "--"),
+    "Incubation CO2: " + (latest.incubation.co2 || "--"),
+    "Incubation Mode: " + (latest.incubation.mode || "--"),
+    "Alarm: " + (lastAlarmMessage || "No active alarm")
+  ].join("\n");
+  window.open("https://wa.me/918800466063?text=" + encodeURIComponent(msg), "_blank");
 }
 
 function csvSafe(value){
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
-}
-
-function minuteKey(timestamp){
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return String(timestamp || "");
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatDisplayDateTime(timestamp){
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return timestamp || "";
-  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
-}
-
-function emptyRoomRow(){
-  return { t1:"", h1:"", t2:"", h2:"", co2:"", mode:"", fan:"", pump:"", inlet:"", ac:"" };
-}
-
-function buildCombinedMinuteRows(store){
-  const map = new Map();
-  ["growroom", "incubation"].forEach(roomName => {
-    (store[roomName] || []).forEach(item => {
-      const key = minuteKey(item.timestamp);
-      if (!map.has(key)) {
-        map.set(key, {
-          timestamp: item.timestamp,
-          grow: emptyRoomRow(),
-          inc: emptyRoomRow()
-        });
-      }
-      const row = map.get(key);
-      if (new Date(item.timestamp) > new Date(row.timestamp)) {
-        row.timestamp = item.timestamp;
-      }
-      if (roomName === "growroom") {
-        row.grow = {
-          t1: item.t1 ?? "",
-          h1: item.h1 ?? "",
-          t2: item.t2 ?? "",
-          h2: item.h2 ?? "",
-          co2: item.co2 ?? "",
-          mode: item.mode ?? "",
-          fan: boolText(item.relay?.fan),
-          pump: boolText(item.relay?.pump),
-          inlet: boolText(item.relay?.inlet),
-          ac: ""
-        };
-      } else {
-        row.inc = {
-          t1: item.t1 ?? "",
-          h1: item.h1 ?? "",
-          t2: item.t2 ?? "",
-          h2: item.h2 ?? "",
-          co2: item.co2 ?? "",
-          mode: item.mode ?? "",
-          fan: boolText(item.relay?.fan),
-          pump: "",
-          inlet: "",
-          ac: boolText(item.relay?.ac)
-        };
-      }
-    });
-  });
-  return Array.from(map.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-}
-
-function boolText(value){
-  if (value === true || value === "true" || value === "ON") return "ON";
-  if (value === false || value === "false" || value === "OFF") return "OFF";
-  return value ?? "";
 }
 
 setInterval(checkAlarm, 5000);
